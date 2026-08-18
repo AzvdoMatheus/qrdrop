@@ -1,0 +1,21 @@
+{
+  "name": "qrdrop-extension",
+  "version": "1.0.0",
+  "description": "Extensão Chrome MV3 do QRDrop — side panel com drop, upload e QR offline.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/qrcode": "^1.5.5",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

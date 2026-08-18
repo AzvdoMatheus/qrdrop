@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QRDrop</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>QRDrop</h1>
+      <span id="status" class="status status--unknown">verificando…</span>
+    </header>
+
+    <main>
+      <div id="offline" class="offline hidden">
+        <p><strong>Daemon offline.</strong></p>
+        <p>Suba o daemon local para começar:</p>
+        <pre><code>cd daemon &amp;&amp; npm run dev</code></pre>
+      </div>
+
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <p>Arraste um arquivo aqui</p>
+        <p class="muted">ou</p>
+        <button id="picker" type="button">Escolher arquivo</button>
+        <input id="fileInput" type="file" hidden />
+      </div>
+
+      <ul id="queue" class="queue"></ul>
+    </main>
+
+    <template id="itemTemplate">
+      <li class="item">
+        <div class="item__head">
+          <span class="item__name"></span>
+          <span class="item__size muted"></span>
+        </div>
+        <div class="item__progress"><div class="item__bar"></div></div>
+        <div class="item__status muted"></div>
+        <div class="item__qr hidden">
+          <canvas></canvas>
+          <div class="item__url"></div>
+          <div class="item__ttl muted"></div>
+        </div>
+      </li>
+    </template>
+
+    <script type="module" src="index.js"></script>
+  </body>
+</html>

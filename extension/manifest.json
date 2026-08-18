@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "QRDrop",
+  "version": "1.0.0",
+  "description": "Compartilhe arquivos do PC para o celular pela LAN, sem nuvem. QR na tela, celular escaneia e baixa.",
+  "permissions": ["sidePanel"],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
+  "action": {
+    "default_title": "Abrir QRDrop"
+  },
+  "background": {
+    "service_worker": "sidepanel/service-worker.js",
+    "type": "module"
+  }
+}
