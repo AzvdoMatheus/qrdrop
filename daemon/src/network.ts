@@ -1,18 +1,8 @@
 import { networkInterfaces } from "node:os";
 import { config } from "./config.js";
 
-/**
- * Descobre o IPv4 da interface de LAN real, filtrando loopback, link-local,
- * e interfaces virtuais comuns (Docker, VPN, WSL). Essa é a parte que dá mais
- * trabalho do que parece — ver seção "Riscos" do PLANNING.
- *
- * `QRDROP_BIND_IP` sempre vence a heurística.
- */
-
-// Interfaces virtuais que nunca queremos anunciar no QR.
 const VIRTUAL_IFACE_RE = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|wg|zt|ppp|lo)/i;
 
-// Faixas privadas em ordem de preferência (Wi-Fi/Ethernet doméstico primeiro).
 const PRIORITY_PREFIXES = ["192.168.", "10.", "172."];
 
 function isLinkLocal(ip: string): boolean {

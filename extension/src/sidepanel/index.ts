@@ -1,8 +1,12 @@
 import { checkHealth, uploadFile, type UploadResult } from "../lib/api.js";
+import { ensureDaemon } from "../lib/daemon.js";
 import { renderQr } from "../lib/qr.js";
 
 const statusEl = must<HTMLSpanElement>("#status");
 const offlineEl = must<HTMLDivElement>("#offline");
+const startBtn = must<HTMLButtonElement>("#startDaemon");
+const offlineHint = must<HTMLParagraphElement>("#offlineHint");
+const offlineManual = must<HTMLDivElement>("#offlineManual");
 const dropzone = must<HTMLDivElement>("#dropzone");
 const picker = must<HTMLButtonElement>("#picker");
 const fileInput = must<HTMLInputElement>("#fileInput");
@@ -14,12 +18,13 @@ function must<T extends Element>(selector: string): T {
   if (!el) throw new Error(`Elemento não encontrado: ${selector}`);
   return el;
 }
-
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
+
   const units = ["KB", "MB", "GB"];
   let value = bytes / 1024;
   let i = 0;
+  
   while (value >= 1024 && i < units.length - 1) {
     value /= 1024;
     i++;
@@ -27,22 +32,48 @@ function formatSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
-// ---- Estado do daemon (online/offline) ------------------------------------
+function showOnline(lanIp: string): void {
+  statusEl.textContent = `online · ${lanIp}`;
+  statusEl.className = "status status--ok";
+  offlineEl.classList.add("hidden");
+}
+
+function showOffline(hostMissing: boolean, message?: string): void {
+  statusEl.textContent = "offline";
+  statusEl.className = "status status--off";
+  offlineEl.classList.remove("hidden");
+  startBtn.classList.toggle("hidden", hostMissing);
+  offlineManual.classList.toggle("hidden", !hostMissing);
+  offlineHint.textContent =
+    message ??
+    (hostMissing
+      ? "Atalho ainda não instalado nesta máquina."
+      : "O daemon não está rodando.");
+}
 
 async function refreshStatus(): Promise<void> {
   const health = await checkHealth();
-  if (health) {
-    statusEl.textContent = `online · ${health.lanIp}`;
-    statusEl.className = "status status--ok";
-    offlineEl.classList.add("hidden");
-  } else {
-    statusEl.textContent = "offline";
-    statusEl.className = "status status--off";
-    offlineEl.classList.remove("hidden");
-  }
+  if (health) showOnline(health.lanIp);
+  else showOffline(false);
 }
 
-// ---- Fila de uploads -------------------------------------------------------
+async function bootDaemon(): Promise<void> {
+  statusEl.textContent = "iniciando…";
+  statusEl.className = "status status--unknown";
+
+  const health = await checkHealth();
+  if (health) {
+    showOnline(health.lanIp);
+    return;
+  }
+
+  const result = await ensureDaemon();
+  if (result.ok && result.lanIp) {
+    showOnline(result.lanIp);
+    return;
+  }
+  showOffline(result.hostMissing ?? false, result.error);
+}
 
 async function enqueue(file: File): Promise<void> {
   const node = itemTemplate.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
@@ -88,12 +119,14 @@ async function showQr(
   const tick = () => {
     const remaining = expiresAt - Date.now();
     if (remaining <= 0) {
-      ttlEl.textContent = "expirado";
+      ttlEl.textContent = "link expirado";
+      qrBox.classList.remove("item__qr--expiring");
       qrBox.classList.add("item__qr--expired");
       clearInterval(timer);
       return;
     }
     const s = Math.floor(remaining / 1000);
+    qrBox.classList.toggle("item__qr--expiring", remaining <= 60_000);
     ttlEl.textContent = `expira em ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   };
   tick();
@@ -105,8 +138,6 @@ function handleFiles(files: FileList | null): void {
   if (!files) return;
   for (const file of Array.from(files)) void enqueue(file);
 }
-
-// ---- Wiring ----------------------------------------------------------------
 
 picker.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
@@ -125,5 +156,12 @@ dropzone.addEventListener("drop", (e) => {
   handleFiles(e.dataTransfer?.files ?? null);
 });
 
-void refreshStatus();
+startBtn.addEventListener("click", () => {
+  startBtn.disabled = true;
+  void bootDaemon().finally(() => {
+    startBtn.disabled = false;
+  });
+});
+
+void bootDaemon();
 setInterval(() => void refreshStatus(), 5000);

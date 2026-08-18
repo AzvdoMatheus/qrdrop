@@ -3,7 +3,7 @@
   "name": "QRDrop",
   "version": "1.0.0",
   "description": "Compartilhe arquivos do PC para o celular pela LAN, sem nuvem. QR na tela, celular escaneia e baixa.",
-  "permissions": ["sidePanel"],
+  "permissions": ["sidePanel", "nativeMessaging"],
   "host_permissions": [
     "http://127.0.0.1:8765/*",
     "http://localhost:8765/*"

@@ -15,13 +15,24 @@
     <main>
       <div id="offline" class="offline hidden">
         <p><strong>Daemon offline.</strong></p>
-        <p>Suba o daemon local para começar:</p>
-        <pre><code>cd daemon &amp;&amp; npm run dev</code></pre>
+        <p id="offlineHint" class="muted">O daemon não está rodando.</p>
+        <button id="startDaemon" type="button" class="hidden">Iniciar daemon</button>
+        <div id="offlineManual" class="hidden">
+          <p class="muted">Instale o atalho uma vez (registra o start automático):</p>
+          <pre><code>cd extension &amp;&amp; ./install.sh</code></pre>
+          <p class="muted">Ou suba manualmente:</p>
+          <pre><code>cd daemon &amp;&amp; npm run dev</code></pre>
+        </div>
       </div>
 
       <div id="dropzone" class="dropzone" tabindex="0">
-        <p>Arraste um arquivo aqui</p>
-        <p class="muted">ou</p>
+        <svg class="dropzone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 15V3" />
+          <path d="m8 7 4-4 4 4" />
+          <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+        </svg>
+        <p class="dropzone__lead">Arraste um arquivo para enviar</p>
+        <p class="dropzone__or muted">ou</p>
         <button id="picker" type="button">Escolher arquivo</button>
         <input id="fileInput" type="file" hidden />
       </div>
@@ -38,9 +49,9 @@
         <div class="item__progress"><div class="item__bar"></div></div>
         <div class="item__status muted"></div>
         <div class="item__qr hidden">
-          <canvas></canvas>
+          <div class="item__pass"><canvas></canvas></div>
           <div class="item__url"></div>
-          <div class="item__ttl muted"></div>
+          <div class="item__ttl"></div>
         </div>
       </li>
     </template>

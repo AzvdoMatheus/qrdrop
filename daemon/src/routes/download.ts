@@ -3,7 +3,6 @@ import { createReadStream } from "node:fs";
 import { extname } from "node:path";
 import { get } from "../store.js";
 
-/** Mapa mínimo de extensão → Content-Type. Fallback para octet-stream. */
 const MIME: Record<string, string> = {
   ".pdf": "application/pdf",
   ".png": "image/png",
@@ -23,17 +22,12 @@ function contentTypeFor(filename: string): string {
   return MIME[extname(filename).toLowerCase()] ?? "application/octet-stream";
 }
 
-/** Content-Disposition seguro com fallback ASCII + variante UTF-8 (RFC 5987). */
 function contentDisposition(filename: string): string {
   const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
   const encoded = encodeURIComponent(filename);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
-/**
- * GET /d/:token — serve o arquivo por streaming. 404 para token inválido,
- * expirado ou já coletado pelo GC. Sem listagem, sem index.
- */
 export function handleDownload(
   _req: IncomingMessage,
   res: ServerResponse,

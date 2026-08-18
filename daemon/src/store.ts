@@ -3,15 +3,9 @@ import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { config } from "./config.js";
 
-/**
- * Índice de tokens em memória + arquivos em disco. Reinício do daemon invalida
- * todos os tokens — comportamento aceitável e até desejável (PLANNING §2).
- */
 export interface FileEntry {
   token: string;
-  /** Caminho real em disco — gerado, nunca derivado do nome enviado. */
   path: string;
-  /** Nome original sanitizado, usado só no Content-Disposition. */
   filename: string;
   size: number;
   expiresAt: number;
@@ -20,7 +14,6 @@ export interface FileEntry {
 const entries = new Map<string, FileEntry>();
 let gcTimer: NodeJS.Timeout | undefined;
 
-/** Token aleatório de 16 bytes — nunca sequencial, nunca derivado do nome. */
 export function newToken(): string {
   return randomBytes(16).toString("hex");
 }
@@ -54,7 +47,6 @@ async function evict(token: string): Promise<void> {
   }
 }
 
-/** Varredura periódica: apaga registro e arquivo do disco de tokens expirados. */
 async function sweep(): Promise<void> {
   const now = Date.now();
   for (const [token, entry] of entries) {
@@ -69,7 +61,6 @@ export function startGc(): void {
   gcTimer.unref();
 }
 
-/** Cleanup no SIGINT: remove todos os arquivos temporários. */
 export async function shutdown(): Promise<void> {
   if (gcTimer) clearInterval(gcTimer);
   await Promise.all([...entries.keys()].map((t) => evict(t)));

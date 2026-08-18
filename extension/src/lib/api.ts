@@ -1,4 +1,3 @@
-/** Cliente do daemon local. Base fixa em 127.0.0.1 na porta previsível. */
 const BASE = "http://127.0.0.1:8765";
 
 export interface UploadResult {
@@ -15,7 +14,6 @@ export interface HealthResult {
   lanIp: string;
 }
 
-/** Verifica se o daemon está no ar. Usado para o estado "daemon offline". */
 export async function checkHealth(): Promise<HealthResult | null> {
   try {
     const res = await fetch(`${BASE}/health`, { method: "GET" });
@@ -26,10 +24,6 @@ export async function checkHealth(): Promise<HealthResult | null> {
   }
 }
 
-/**
- * Envia um arquivo via XMLHttpRequest para ter progresso de upload.
- * Resolve com o JSON do daemon (201) ou rejeita com mensagem legível.
- */
 export function uploadFile(
   file: File,
   onProgress: (fraction: number) => void,

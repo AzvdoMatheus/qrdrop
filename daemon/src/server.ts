@@ -8,10 +8,21 @@ import { sendJson } from "./routes/util.js";
 
 const lanIp = detectLanIp();
 
-/** CORS restrito à origem chrome-extension:// (PLANNING §4). */
+// Cada usuário gera sua própria extensão, então o ID não é fixo. Aceitamos
+// qualquer origem chrome-extension://; QRDROP_EXTENSION_ID fixa um ID específico.
+const PINNED_ORIGIN = config.extensionId
+  ? `chrome-extension://${config.extensionId}`
+  : undefined;
+
+function isAllowedOrigin(origin: string | undefined): origin is string {
+  if (!origin) return false;
+  if (PINNED_ORIGIN) return origin === PINNED_ORIGIN;
+  return /^chrome-extension:\/\/[a-p]{32}$/.test(origin);
+}
+
 function applyCors(req: IncomingMessage, res: ServerResponse): void {
   const origin = req.headers.origin;
-  if (origin && origin.startsWith("chrome-extension://")) {
+  if (isAllowedOrigin(origin)) {
     res.setHeader("access-control-allow-origin", origin);
     res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
     res.setHeader("access-control-allow-headers", "content-type");
@@ -53,18 +64,23 @@ async function main(): Promise<void> {
   await ensureStorage();
   startGc();
 
-  const server = createServer(route);
+  const hosts = lanIp === "127.0.0.1" ? [lanIp] : [lanIp, "127.0.0.1"];
+  const servers = hosts.map(() => createServer(route));
 
-  // Bind explícito no IP da LAN — nunca 0.0.0.0 (PLANNING §4).
-  server.listen(config.port, lanIp, () => {
-    console.log(`QRDrop daemon v${config.version}`);
-    console.log(`  escutando em http://${lanIp}:${config.port}`);
-    console.log(`  TTL dos tokens: ${config.tokenTtlMs / 1000}s`);
+  servers.forEach((server, i) => {
+    const host = hosts[i]!;
+    server.listen(config.port, host, () => {
+      if (i === 0) {
+        console.log(`QRDrop daemon v${config.version}`);
+        console.log(`  TTL dos tokens: ${config.tokenTtlMs / 1000}s`);
+      }
+      console.log(`  escutando em http://${host}:${config.port}`);
+    });
   });
 
   const stop = async () => {
     console.log("\nencerrando…");
-    server.close();
+    for (const server of servers) server.close();
     await shutdown();
     process.exit(0);
   };

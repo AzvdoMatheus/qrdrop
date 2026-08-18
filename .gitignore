@@ -3,3 +3,6 @@ dist/
 *.log
 .DS_Store
 .env
+
+extension/native-host/qrdrop-key.pem
+extension/native-host/qrdrop-host.sh
