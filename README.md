@@ -1,112 +1,130 @@
 # QRDrop
 
-> Compartilhamento de arquivos PC → celular pela LAN, sem nuvem.
-> Extensão do Chrome + daemon local. QR code na tela, celular escaneia e baixa.
+Compartilhamento de arquivos do PC para o celular pela rede local, sem nuvem.
+É composto por uma extensão do Chrome e um daemon local. A extensão mostra um QR
+code na tela, o celular escaneia e faz o download.
 
-Arraste um arquivo no side panel da extensão → o daemon grava em disco e devolve
-um token efêmero → a extensão renderiza um QR de `http://<ip-da-lan>:8765/d/<token>`
-→ o celular escaneia e baixa. **Nada sai da LAN.** Nenhuma conta, nenhum servidor remoto.
+## Como funciona
+
+1. Você arrasta um arquivo no side panel da extensão.
+2. O daemon grava o arquivo em disco e devolve um token temporário.
+3. A extensão renderiza um QR code apontando para `http://<ip-da-lan>:8765/d/<token>`.
+4. O celular escaneia o QR e baixa o arquivo pela rede local.
+
+Nenhum dado sai da LAN. Não há conta nem servidor remoto.
 
 ## Arquitetura
 
-```
-Extensão Chrome MV3           Daemon Node/TS
- side panel (drop)  ──POST──▶  POST /upload  (multipart streaming)
- render QR offline  ◀─JSON──   GET  /d/:token
-                               GET  /health
-                                      │ HTTP na LAN
-                                   Celular
-```
+Extensão Chrome (MV3):
+
+* Side panel recebe o arquivo e faz `POST /upload`.
+* Renderiza o QR code offline a partir da resposta.
+
+Daemon Node/TypeScript:
+
+* `POST /upload` recebe o arquivo via multipart streaming.
+* `GET /d/:token` serve o download.
+* `GET /health` informa status e IP da LAN.
+
+O celular acessa o daemon diretamente pela rede local via HTTP.
 
 ## Como rodar
 
-### Instalação rápida (recomendada) — sem terminal depois
+### Instalação rápida
 
 ```bash
 cd extension
-./install.sh         # compila daemon+extensão e registra o native host
+./install.sh
 ```
 
-Depois carregue `extension/dist` em `chrome://extensions` (modo desenvolvedor →
-**Carregar sem compactação**). A partir daí, **clicar no ícone do QRDrop sobe o
-daemon sozinho** — via [native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging),
-sem abrir terminal. `./install.sh --uninstall` remove o host registrado.
+O script compila o daemon e a extensão e registra o native host. Depois, carregue
+a pasta `extension/dist` em `chrome://extensions` (ative o modo desenvolvedor e use
+"Carregar sem compactação"). A partir daí, clicar no ícone da extensão inicia o
+daemon sob demanda via [native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging),
+sem precisar abrir o terminal. Para remover o host registrado, rode
+`./install.sh --uninstall`.
 
-> Por que ainda existe um passo de install: o sandbox do Chrome (MV3) não deixa
-> uma extensão executar processos locais. O native host é o mecanismo oficial —
-> um launcher que a extensão aciona e que sobe o daemon destacado sob demanda.
+O passo de instalação existe porque o sandbox do Chrome (MV3) não permite que uma
+extensão execute processos locais. O native host é o mecanismo oficial: um launcher
+que a extensão aciona e que inicia o daemon.
 
-> **ID fixo da extensão — gerado por você, localmente.** Na primeira execução o
-> `./install.sh` gera um par de chaves seu em `extension/native-host/qrdrop-key.pem`
-> (nunca versionado), deriva a `key` pública do `manifest.json` e o ID da extensão,
-> e registra esse ID no `allowed_origins` do host nativo. Assim o native messaging
-> funciona de primeira, sem editar IDs a cada carregamento — e sem depender de
-> nenhuma chave de outra pessoa. O ID impresso ao final é o que aparece em
-> `chrome://extensions`. Guarde o `qrdrop-key.pem`: apagá-lo muda o ID na próxima
-> instalação (basta rodar o `./install.sh` de novo para reregistrar o host).
+### Geração da chave da extensão
 
-### Modo manual (dev)
+Na primeira execução, o `./install.sh` gera um par de chaves em
+`extension/native-host/qrdrop-key.pem` (esse arquivo não é versionado). A partir
+dele o script deriva a `key` pública do `manifest.json` e o ID da extensão, e
+registra esse ID no `allowed_origins` do host nativo. Assim o native messaging
+funciona sem editar IDs manualmente, e cada usuário usa a própria chave.
 
-Sem o native host: você mesmo sobe o daemon no terminal e carrega a extensão.
+O ID impresso ao final da instalação é o mesmo que aparece em `chrome://extensions`.
+Se você apagar o `qrdrop-key.pem`, o ID muda na próxima instalação. Basta rodar o
+`./install.sh` de novo para regenerar a chave e reregistrar o host.
 
-#### 1. Daemon
+### Modo manual (desenvolvimento)
+
+Sem o native host, você inicia o daemon no terminal e carrega a extensão.
+
+Daemon:
 
 ```bash
 cd daemon
 npm install
-npm run dev          # tsx watch, escuta no IP da LAN, porta 8765
+npm run dev
 ```
+
+`npm run dev` usa `tsx watch`, escuta no IP da LAN na porta 8765 e faz rebuild
+automático. O host nativo lança `dist/server.js`, então rode `npm run build` antes
+de testar o fluxo automático, ou `npm run start` para servir direto da build.
 
 Variáveis de ambiente (todas opcionais):
 
-| Var | Default | Descrição |
+| Variável | Padrão | Descrição |
 |---|---|---|
 | `QRDROP_PORT` | `8765` | Porta do daemon |
-| `QRDROP_BIND_IP` | auto | Força o IP da LAN (pula a heurística) |
-| `QRDROP_TTL_MS` | `600000` | TTL dos tokens (10 min) |
+| `QRDROP_BIND_IP` | automático | Força o IP da LAN e pula a heurística |
+| `QRDROP_TTL_MS` | `600000` | TTL dos tokens (10 minutos) |
 | `QRDROP_MAX_BYTES` | `2147483648` | Limite de upload (2 GB) |
-| `QRDROP_STORAGE_DIR` | tmp do SO | Onde os arquivos são gravados |
+| `QRDROP_STORAGE_DIR` | tmp do sistema | Onde os arquivos são gravados |
 | `QRDROP_EXTENSION_ID` | qualquer | Fixa o CORS num ID de extensão específico |
 
-> `npm run dev` roda do fonte via `tsx watch` (rebuild automático). O host
-> nativo, porém, lança `dist/server.js` — então rode `npm run build` antes de
-> testar o fluxo automático, ou `npm run start` para servir direto da build.
-
-#### 2. Extensão
+Extensão:
 
 ```bash
 cd extension
 npm install
-npm run build        # gera dist/  (npm run dev para rebuild em watch)
+npm run build
 ```
 
-Em `chrome://extensions` → ative o modo desenvolvedor → **Carregar sem compactação**
-→ selecione a pasta `extension/dist`. Clique no ícone para abrir o side panel.
-
-No modo manual o daemon já está no ar, então a extensão apenas se conecta a ele —
-o native host não é acionado (e o botão de "subir daemon" vira no-op).
+Em `chrome://extensions`, ative o modo desenvolvedor, use "Carregar sem compactação"
+e selecione a pasta `extension/dist`. Clique no ícone para abrir o side panel. No
+modo manual o daemon já está no ar, então a extensão apenas se conecta a ele e o
+native host não é acionado.
 
 ## Contrato da API
 
-- `POST /upload` — `multipart/form-data`, campo `file`. Streaming direto pro disco.
-  `201 → { token, url, filename, size, expiresAt }`. `413` acima do limite, `400` sem arquivo.
-- `GET /d/:token` — download com `Content-Disposition`. `404` se inválido/expirado/coletado.
-- `GET /health` — `{ ok, version, lanIp }`. Usado pela extensão pra detectar offline.
+* `POST /upload`: `multipart/form-data` com o campo `file`, gravado direto em disco.
+  Responde `201` com `{ token, url, filename, size, expiresAt }`. Retorna `413`
+  acima do limite e `400` sem arquivo.
+* `GET /d/:token`: download com `Content-Disposition`. Retorna `404` se o token for
+  inválido, expirado ou já coletado.
+* `GET /health`: retorna `{ ok, version, lanIp }`. A extensão usa para detectar
+  quando o daemon está offline.
 
 ## Segurança (v1)
 
-1. **Token aleatório de 16 bytes** (`crypto.randomBytes`). Nunca sequencial nem derivado do nome.
-2. **TTL de 10 min** — varredura a cada 60s apaga registro e arquivo do disco.
-3. **Bind explícito no IP da LAN** — `listen(8765, lanIp)`, nunca `0.0.0.0`.
+1. Token aleatório de 16 bytes gerado com `crypto.randomBytes`, nunca sequencial nem
+   derivado do nome do arquivo.
+2. TTL de 10 minutos. Uma varredura a cada 60 segundos apaga o registro e o arquivo
+   do disco.
+3. Bind explícito no IP da LAN via `listen(8765, lanIp)`, nunca em `0.0.0.0`.
 
-Complementos: path traversal impossível (token → caminho gerado), nome sanitizado só no
-`Content-Disposition`, CORS restrito a origens `chrome-extension://` (opcionalmente
-fixado num ID via `QRDROP_EXTENSION_ID`), sem log de conteúdo.
+Além disso: o caminho do arquivo é derivado do token, o que evita path traversal; o
+nome do arquivo é sanitizado apenas no `Content-Disposition`; o CORS aceita origens
+`chrome-extension://` (opcionalmente fixadas num ID via `QRDROP_EXTENSION_ID`); e não
+há log de conteúdo.
 
-## Roadmap (fora do v1, deliberadamente)
+## Roadmap
 
-HTTPS · autostart no login (hoje o daemon sobe ao clicar na extensão) ·
-mDNS/descoberta automática · histórico persistente ·
-autenticação · múltiplos dispositivos simultâneos · upload celular → PC.
-
-Cada um transforma a semana em mês — a omissão é escolha, não desconhecimento.
+Fora do escopo da v1: HTTPS, autostart no login, descoberta automática por mDNS,
+histórico persistente, autenticação, múltiplos dispositivos simultâneos e upload do
+celular para o PC.
