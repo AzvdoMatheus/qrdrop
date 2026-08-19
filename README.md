@@ -48,17 +48,43 @@ O passo de instalação existe porque o sandbox do Chrome (MV3) não permite que
 extensão execute processos locais. O native host é o mecanismo oficial: um launcher
 que a extensão aciona e que inicia o daemon.
 
+O `install.sh` é uma vez só por máquina. Ele não precisa rodar de novo a cada
+sessão: o manifest do host nativo fica registrado no perfil do navegador e a
+extensão carregada continua carregada entre reinícios do Chrome.
+
 ### Geração da chave da extensão
 
-Na primeira execução, o `./install.sh` gera um par de chaves em
+Na primeira execução, `extension/scripts/ext-key.mjs` gera um par de chaves em
 `extension/native-host/qrdrop-key.pem` (esse arquivo não é versionado). A partir
-dele o script deriva a `key` pública do `manifest.json` e o ID da extensão, e
-registra esse ID no `allowed_origins` do host nativo. Assim o native messaging
-funciona sem editar IDs manualmente, e cada usuário usa a própria chave.
+dele deriva a `key` pública do `manifest.json` e o ID da extensão, e o
+`install.sh` registra esse ID no `allowed_origins` do host nativo. Assim o native
+messaging funciona sem editar IDs manualmente, e cada usuário usa a própria chave.
+
+Esse mesmo script roda em **todo build** (`npm run build` e `npm run dev`), não só
+no `install.sh`. É isso que mantém o ID estável: sem a `key` no
+`dist/manifest.json`, o Chrome sorteia um ID novo a cada carga, o
+`allowed_origins` do host deixa de bater e é preciso recarregar a extensão do
+zero. Com a chave injetada no build, você recompila à vontade e o Chrome continua
+enxergando a mesma extensão no mesmo caminho.
 
 O ID impresso ao final da instalação é o mesmo que aparece em `chrome://extensions`.
 Se você apagar o `qrdrop-key.pem`, o ID muda na próxima instalação. Basta rodar o
 `./install.sh` de novo para regenerar a chave e reregistrar o host.
+
+### Ciclo de desenvolvimento
+
+Depois de carregar a pasta `extension/dist` uma vez, nada precisa ser reenviado ao
+`chrome://extensions` — o Chrome lê os arquivos direto do disco:
+
+* Mudou o side panel (`index.ts`, `index.html`, `styles.css`): rode o build e
+  reabra o painel.
+* Mudou o `manifest.json` ou o service worker: rode o build e clique no botão de
+  recarregar do card da extensão em `chrome://extensions`.
+* Mudou o daemon: `cd daemon && npm run build` (o host nativo lança
+  `daemon/dist/server.js`).
+
+`cd extension && npm run dev` deixa o esbuild em watch, então na maioria dos casos
+sobra só reabrir o painel.
 
 ### Modo manual (desenvolvimento)
 
@@ -109,22 +135,3 @@ native host não é acionado.
   inválido, expirado ou já coletado.
 * `GET /health`: retorna `{ ok, version, lanIp }`. A extensão usa para detectar
   quando o daemon está offline.
-
-## Segurança (v1)
-
-1. Token aleatório de 16 bytes gerado com `crypto.randomBytes`, nunca sequencial nem
-   derivado do nome do arquivo.
-2. TTL de 10 minutos. Uma varredura a cada 60 segundos apaga o registro e o arquivo
-   do disco.
-3. Bind explícito no IP da LAN via `listen(8765, lanIp)`, nunca em `0.0.0.0`.
-
-Além disso: o caminho do arquivo é derivado do token, o que evita path traversal; o
-nome do arquivo é sanitizado apenas no `Content-Disposition`; o CORS aceita origens
-`chrome-extension://` (opcionalmente fixadas num ID via `QRDROP_EXTENSION_ID`); e não
-há log de conteúdo.
-
-## Roadmap
-
-Fora do escopo da v1: HTTPS, autostart no login, descoberta automática por mDNS,
-histórico persistente, autenticação, múltiplos dispositivos simultâneos e upload do
-celular para o PC.

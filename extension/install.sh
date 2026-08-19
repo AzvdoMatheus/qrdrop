@@ -57,33 +57,8 @@ echo "node: $NODE_BIN"
 
 # Chave da extensão: gerada localmente na primeira execução (nunca versionada).
 # Fixa o ID da extensão para que o allowed_origins do host bata de primeira.
-KEY_PEM="$NATIVE_DIR/qrdrop-key.pem"
-if [[ ! -f "$KEY_PEM" ]]; then
-  echo "Gerando chave local da extensão (qrdrop-key.pem)…"
-  "$NODE_BIN" -e '
-    const { generateKeyPairSync } = require("node:crypto");
-    const { writeFileSync } = require("node:fs");
-    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-    const pem = privateKey.export({ type: "pkcs8", format: "pem" });
-    writeFileSync(process.argv[1], pem, { mode: 0o600 });
-  ' "$KEY_PEM"
-fi
-
-# Deriva do pem: (1) a public key base64 para o manifest, (2) o ID da extensão.
-GEN="$("$NODE_BIN" -e '
-  const { readFileSync } = require("node:fs");
-  const { createPublicKey, createHash } = require("node:crypto");
-  const der = createPublicKey(readFileSync(process.argv[1]))
-    .export({ type: "spki", format: "der" });
-  const hash = createHash("sha256").update(der).digest();
-  let id = "";
-  for (let i = 0; i < 16; i++) {
-    id += String.fromCharCode(97 + (hash[i] >> 4));
-    id += String.fromCharCode(97 + (hash[i] & 0xf));
-  }
-  process.stdout.write(der.toString("base64") + "\n" + id + "\n");
-' "$KEY_PEM")"
-PUBKEY_B64="$(printf '%s\n' "$GEN" | sed -n 1p)"
+# O mesmo script roda em todo build, então dist/ e host sempre concordam no ID.
+GEN="$("$NODE_BIN" "$EXT_DIR/scripts/ext-key.mjs")"
 EXT_ID="$(printf '%s\n' "$GEN" | sed -n 2p)"
 echo "ID da extensão: $EXT_ID"
 
@@ -91,15 +66,6 @@ echo "Compilando o daemon…"
 ( cd "$REPO_DIR/daemon" && npm install --silent && npm run build --silent )
 echo "Compilando a extensão…"
 ( cd "$EXT_DIR" && npm install --silent && npm run build --silent )
-
-# Injeta a public key no manifest buildado (o manifest versionado não a contém).
-"$NODE_BIN" -e '
-  const { readFileSync, writeFileSync } = require("node:fs");
-  const p = process.argv[1];
-  const m = JSON.parse(readFileSync(p, "utf8"));
-  m.key = process.argv[2];
-  writeFileSync(p, JSON.stringify(m, null, 2) + "\n");
-' "$EXT_DIR/dist/manifest.json" "$PUBKEY_B64"
 
 cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
